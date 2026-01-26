@@ -6,11 +6,11 @@ import Head from "next/head";
 import Script from "next/script";
 import Navbar from "@/components/Navbar"; 
 import Footer from "@/components/Footer"; 
+// FIX: Removed duplicate import. Keeping only the React component version.
 import { Analytics } from "@vercel/analytics/react"; 
 import { motion, AnimatePresence, Variants } from "framer-motion"; 
 import { Phone, MessageCircle, MessageSquareText, X } from "lucide-react"; 
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next"
 
 // --- Dynamic ChatBot Import ---
 const ChatBot = dynamic(() => import("@/components/ChatBot/ChatBot"), {
@@ -23,7 +23,7 @@ const ChatBot = dynamic(() => import("@/components/ChatBot/ChatBot"), {
   ),
 });
 
-// --- Animation Variants (Typed to fix TS Error) ---
+// --- Animation Variants ---
 const stackContainerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
@@ -40,7 +40,7 @@ const fabVariants: Variants = {
   hidden: { opacity: 0, scale: 0, y: 20 },
   visible: { 
     opacity: 1, scale: 1, y: 0,
-    transition: { type: "spring", stiffness: 500, damping: 25 }
+    transition: { type: "spring" as const, stiffness: 500, damping: 25 }
   },
   hover: { scale: 1.1, rotate: -5 },
   tap: { scale: 0.9 },
@@ -52,7 +52,7 @@ const rippleEffect: Variants = {
       "0 0 0 0 rgba(20, 184, 166, 0.4)",
       "0 0 0 10px rgba(20, 184, 166, 0)",
     ],
-    transition: { duration: 2, repeat: Infinity, repeatType: "loop" },
+    transition: { duration: 2, repeat: Infinity, repeatType: "loop" as const },
   },
 };
 
