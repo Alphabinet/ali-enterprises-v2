@@ -6,8 +6,8 @@ import Head from "next/head";
 import Script from "next/script";
 import Navbar from "@/components/Navbar"; 
 import Footer from "@/components/Footer"; 
-// FIX: Removed duplicate import. Keeping only the React component version.
-import { Analytics } from "@vercel/analytics/react"; 
+// Vercel Web Analytics for Next.js App Router
+import { Analytics } from "@vercel/analytics/next"; 
 import { motion, AnimatePresence, Variants } from "framer-motion"; 
 import { Phone, MessageCircle, MessageSquareText, X } from "lucide-react"; 
 import "./globals.css";
