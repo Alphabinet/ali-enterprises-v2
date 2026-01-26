@@ -10,6 +10,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { motion, AnimatePresence, Variants } from "framer-motion"; 
 import { Phone, MessageCircle, MessageSquareText, X } from "lucide-react"; 
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next"
 
 // --- Dynamic ChatBot Import ---
 const ChatBot = dynamic(() => import("@/components/ChatBot/ChatBot"), {
