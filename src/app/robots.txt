@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/admin/', '/private/'], // Protect your admin area
+      disallow: ['/admin/', '/private/'], // Blocks Google from indexing your Admin Panel
     },
     sitemap: 'https://alienterprises.in/sitemap.xml',
   }

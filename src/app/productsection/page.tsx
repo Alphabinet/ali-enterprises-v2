@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Head from "next/head";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -10,11 +9,9 @@ import { collection, getDocs, limit, query, orderBy } from "firebase/firestore";
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Info, 
   CheckCircle2, 
   Loader2,
   PackageSearch,
-  LucideCheckCircle2
 } from "lucide-react";
 
 // --- Types ---
@@ -112,6 +109,11 @@ const ProductSection = () => {
   }, [currentProduct, isAutoSlidingPaused, products.length]);
 
   const allProducts = products;
+  const currentProductData = allProducts[currentProduct];
+  
+  // Calculate next image for preloading
+  const nextIndex = (currentProduct + 1) % allProducts.length;
+  const nextProductData = allProducts[nextIndex];
 
   // --- Controls ---
   const handleManualChange = useCallback((index: number) => {
@@ -163,8 +165,6 @@ const ProductSection = () => {
     resumeTimerRef.current = setTimeout(() => setIsAutoSlidingPaused(false), 4000);
   };
 
-  const currentProductData = allProducts[currentProduct];
-
   // --- Loading / Error States ---
   if (loading) {
     return (
@@ -213,7 +213,7 @@ const ProductSection = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.3 }} // Speed up transition
             className="flex flex-col h-full"
           >
             {/* Image Area - Changed to bg-white and object-contain */}
@@ -223,13 +223,16 @@ const ProductSection = () => {
                    <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
                 </div>
               )}
+              
               <Image
                 src={currentProductData?.image || "/machines/default.png"}
                 alt={currentProductData?.name}
-                className="object-contain" // Ensures image is original size within container
+                className="object-contain" 
                 fill
-                quality={100}
-                priority
+                // OPTIMIZATION: Critical Priority for active image
+                priority={true} 
+                loading="eager"
+                sizes="(max-width: 768px) 100vw, 40vw" // Precise sizes
                 onLoad={() => setImageLoading(false)}
               />
 
@@ -256,7 +259,7 @@ const ProductSection = () => {
               <div>
                 <motion.h3 
                   className="text-3xl font-bold text-slate-900 mb-2 leading-tight bg-slate-100 p-2 rounded-t-xl"
-                  initial={{ y: 10, opacity: 0 }}
+                  initial={{ y: 5, opacity: 0 }} // Reduced movement for speed
                   animate={{ y: 0, opacity: 1 }}
                 >
                   {currentProductData?.name}
@@ -340,10 +343,19 @@ const ProductSection = () => {
 
   return (
     <>
-      <Head>
-        <title>Industrial Solutions | Ali Enterprises</title>
-        <meta name="description" content="Premium industrial machinery and solutions." />
-      </Head>
+      {/* OPTIMIZATION: Hidden Preloader for the NEXT image so it is ready instantly */}
+      <div className="hidden">
+        {nextProductData && (
+          <Image
+            src={nextProductData.image}
+            alt="preload"
+            width={600}
+            height={400}
+            priority={false}
+            loading="eager"
+          />
+        )}
+      </div>
 
       <section className="bg-slate-50 py-12 lg:py-20 relative overflow-hidden z-10">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-teal-100/50 rounded-full blur-[100px] -z-0 translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
@@ -383,20 +395,20 @@ const ProductSection = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
+                      transition={{ duration: 0.2 }}
                     >
-                      {/* Mobile Image - Changed to bg-white and object-contain */}
+                      {/* Mobile Image */}
                       <div className="relative h-[280px] bg-white p-2">
                         {imageLoading && <div className="absolute inset-0 bg-white z-10 animate-pulse" />}
                         <Image
                           src={currentProductData?.image || "/machines/default.png"}
                           alt={currentProductData?.name}
-                          className="object-contain" // Ensures image is original size
+                          className="object-contain" 
                           fill
-                          priority
+                          priority={true}
+                          sizes="100vw"
                           onLoad={() => setImageLoading(false)}
                         />
-                        {/* Gradient slightly darker for text contrast if needed, but keeping image clean */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
 
                         {/* Mobile Controls */}
