@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -40,8 +40,8 @@ export default function ProductClient({ product }: { product: Product }) {
 
   const isVideo = (url: string) => url?.match(/\.(mp4|webm|ogg)$/i) || url?.includes("video");
 
-  // --- PRELOAD LOGIC (THE FIX) ---
-  // Calculate next and previous indices to preload them
+  // --- PRELOAD LOGIC ---
+  // Calculate next and previous indices to silently preload them in the background
   const nextIndex = (activeImage + 1) % displayImages.length;
   const prevIndex = (activeImage - 1 + displayImages.length) % displayImages.length;
 
@@ -218,17 +218,6 @@ export default function ProductClient({ product }: { product: Product }) {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 lg:pb-20 font-sans">
       
-      {/* --- HIDDEN PRELOADER (Instant Loading Fix) --- */}
-      {/* This renders invisible images for Next and Previous slides so the browser fetches them NOW */}
-      <div className="hidden">
-        {!isVideo(displayImages[nextIndex]) && (
-            <Image src={displayImages[nextIndex]} alt="preload-next" width={800} height={800} priority />
-        )}
-        {!isVideo(displayImages[prevIndex]) && (
-            <Image src={displayImages[prevIndex]} alt="preload-prev" width={800} height={800} priority />
-        )}
-      </div>
-
       {/* Top Banner */}
       <div className="h-40 lg:h-64 bg-slate-900 absolute top-0 left-0 w-full z-0">
         <div className="absolute inset-0 bg-teal-900/20 opacity-30"></div>
@@ -260,15 +249,38 @@ export default function ProductClient({ product }: { product: Product }) {
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
             >
-              {/* Changed mode to popLayout for faster transitions */}
+              {/* --- BACKGROUND PRELOADER --- */}
+              {/* These images are visually hidden (opacity-0) and lack the priority tag, so the browser downloads them lazily AFTER the main image is fully loaded */}
+              {displayImages.length > 1 && (
+                <div className="absolute inset-0 opacity-0 pointer-events-none z-0">
+                  {!isVideo(displayImages[nextIndex]) && (
+                    <Image
+                      src={displayImages[nextIndex]}
+                      alt="preload-next"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
+                    />
+                  )}
+                  {displayImages.length > 2 && !isVideo(displayImages[prevIndex]) && (
+                    <Image
+                      src={displayImages[prevIndex]}
+                      alt="preload-prev"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* --- ACTIVE IMAGE DISPLAY --- */}
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={activeImage}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }} // Faster transition (was 0.3)
-                  className="w-full h-full absolute inset-0"
+                  transition={{ duration: 0.2 }}
+                  className="w-full h-full absolute inset-0 z-10"
                 >
                   {isVideo(displayImages[activeImage]) ? (
                     <div className="w-full h-full bg-black flex items-center justify-center relative">
@@ -283,20 +295,21 @@ export default function ProductClient({ product }: { product: Product }) {
                       alt={`${product.name} view ${activeImage + 1}`}
                       fill
                       className="object-contain"
-                      priority={true} // Always prioritize the active one
-                      sizes="(max-width: 768px) 100vw, 70vw"
+                      priority={true} // High priority for LCP (Main Image loads instantly)
+                      fetchPriority="high" 
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw" 
                     />
                   )}
                 </motion.div>
               </AnimatePresence>
 
               {/* Counter Badge */}
-              <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm z-10 pointer-events-none">
+              <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm z-20 pointer-events-none">
                  {activeImage + 1} / {displayImages.length}
               </div>
 
               {/* Mobile Dots Indicator */}
-              <div className="absolute bottom-3 left-0 w-full flex justify-center gap-1.5 z-10 lg:hidden">
+              <div className="absolute bottom-3 left-0 w-full flex justify-center gap-1.5 z-20 lg:hidden">
                  {displayImages.map((_, idx) => (
                    <div 
                      key={idx} 
@@ -310,13 +323,13 @@ export default function ProductClient({ product }: { product: Product }) {
                 <>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 text-slate-800 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all active:scale-95 lg:opacity-0 lg:group-hover:opacity-100 z-20 hover:bg-white"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 text-slate-800 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all active:scale-95 lg:opacity-0 lg:group-hover:opacity-100 z-30 hover:bg-white"
                   >
                     <ChevronLeft size={20} />
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 text-slate-800 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all active:scale-95 lg:opacity-0 lg:group-hover:opacity-100 z-20 hover:bg-white"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 text-slate-800 p-2 rounded-full shadow-lg backdrop-blur-sm transition-all active:scale-95 lg:opacity-0 lg:group-hover:opacity-100 z-30 hover:bg-white"
                   >
                     <ChevronRight size={20} />
                   </button>
