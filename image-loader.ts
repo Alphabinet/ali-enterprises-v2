@@ -9,12 +9,18 @@ export default function customImageLoader({
   width: number;
   quality?: number;
 }) {
-  // For local images (e.g., stored in your public folder), return the source directly
+  // 1. Local images (stored in your public folder) return directly
   if (src.startsWith('/')) {
     return src;
   }
 
-  // For remote images (like Firebase and UI Avatars), use the free wsrv.nl proxy 
-  // to automatically optimize, resize, and convert to WebP format
-  return `https://wsrv.nl/?url=${encodeURIComponent(src)}&w=${width}&q=${quality || 75}&output=webp`;
+  // 2. Bypass proxy for UI Avatars. 
+  // They are already tiny and fast; proxying them adds unnecessary delay.
+  if (src.includes('ui-avatars.com')) {
+    return src;
+  }
+
+  // 3. Process Firebase images through the proxy.
+  // Added &maxage=31536000 to force the browser to cache the optimized image for 1 year.
+  return `https://wsrv.nl/?url=${encodeURIComponent(src)}&w=${width}&q=${quality || 75}&output=webp&maxage=31536000`;
 }
