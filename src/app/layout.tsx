@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import ClientLayout from "@/components/ClientLayout"; // Import the component we made in Step 1
 
@@ -90,6 +91,14 @@ export default function RootLayout({
         <ClientLayout>
           {children}
         </ClientLayout>
+        
+        {/* Umami Tracking Script */}
+        <Script
+          defer
+          src="https://cloud.umami.is/script.js"
+          data-website-id="7e9e36c5-fda4-4a58-8021-117fececb7fb"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
