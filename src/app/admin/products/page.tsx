@@ -1,633 +1,483 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  doc,
-  deleteDoc,
-  updateDoc,
-  serverTimestamp,
-  query,
-  orderBy
-} from "firebase/firestore";
-import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-} from "firebase/storage";
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, setDoc, getDoc, serverTimestamp, query, orderBy } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
-  Loader2,
-  Plus,
-  Trash2,
-  Edit2,
-  Save,
-  X,
-  UploadCloud,
-  ArrowLeft,
-  Search,
-  Filter,
-  ChevronRight,
-  LayoutList,
-  Image as ImageIcon,
-  CheckCircle2,
-  AlertCircle,
-  Package,
-  Layers,
-  FileText
+  Loader2, Plus, Trash2, Edit2, Save, X, UploadCloud,
+  ArrowLeft, Search, Filter, ChevronRight, CheckCircle2,
+  AlertCircle, Package, FileText, Scale, Image as ImageIcon
 } from "lucide-react";
 import DeleteModal from "@/components/admin/DeleteModal";
 
-// --- Types ---
+type PageView = "list" | "form";
+type ActiveTab = "products" | "comparison";
+
+// Types
 interface ProductForm {
-  id?: string;
-  name: string;
-  category: string;
-  price: string;
-  description: string;
-  features: string[];
-  specs: { key: string; value: string }[];
-  thumbnail: string | null;
-  gallery: string[];
+  id?: string; name: string; category: string; price: string;
+  description: string; features: string[]; specs: { key: string; value: string }[];
+  thumbnail: string | null; gallery: string[];
+}
+interface MetricRow { name: string; old: string; new: string; }
+interface ComparisonData {
+  headerTitle: string; headerDesc: string;
+  oldImage: string; oldTitle: string; oldDesc: string; oldPoints: string[];
+  newImage: string; newTitle: string; newDesc: string; newPoints: string[];
+  metrics: MetricRow[];
 }
 
 const INITIAL_FORM: ProductForm = {
-  name: "",
-  category: "Industrial",
-  price: "",
-  description: "",
-  features: [""],
-  specs: [{ key: "", value: "" }],
-  thumbnail: null,
-  gallery: [],
+  name:"", category:"Industrial", price:"", description:"",
+  features:[""], specs:[{key:"",value:""}], thumbnail:null, gallery:[],
 };
+const INITIAL_CMP: ComparisonData = {
+  headerTitle:"Traditional vs. Modern Technology", headerDesc:"See how switching saves you money.",
+  oldImage:"", oldTitle:"Manual / Old Method", oldDesc:"Labor intensive, slow.", oldPoints:["High manual labor","Inconsistent quality"],
+  newImage:"", newTitle:"Ali Enterprises", newDesc:"Automated, fast, high-profit.", newPoints:["10x Production Speed","Operates 24/7"],
+  metrics:[{name:"Daily Production",old:"1,500 Bricks",new:"15,000+ Bricks"},{name:"Labor Required",old:"10-12 Workers",new:"3-4 Workers"}],
+};
+const CATEGORIES = ["Industrial","Construction","Agriculture","Automatic","Manual","Hydraulic","Spares"];
 
-const CATEGORIES = ["Industrial", "Construction", "Agriculture", "Automatic", "Manual", "Hydraulic", "Spares"];
-
-// --- Components ---
-
-const Toast = ({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) => (
-  <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl transition-all duration-300 animate-in slide-in-from-bottom-5 max-w-[90vw] ${type === "success" ? "bg-teal-900 text-white border border-teal-700" : "bg-red-600 text-white border border-red-500"}`}>
-    {type === "success" ? <CheckCircle2 size={20} className="shrink-0" /> : <AlertCircle size={20} className="shrink-0" />}
-    <p className="font-medium text-sm">{message}</p>
-    <button onClick={onClose} className="ml-auto opacity-70 hover:opacity-100 transition-opacity p-1"><X size={16} /></button>
+const Toast = ({message,type,onClose}: {message:string;type:"success"|"error";onClose:()=>void}) => (
+  <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5 max-w-sm ${type==="success"?"bg-teal-900 border border-teal-700 text-white":"bg-red-900 border border-red-700 text-white"}`}>
+    {type==="success"?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}
+    <p className="text-sm font-medium flex-1">{message}</p>
+    <button onClick={onClose}><X size={16}/></button>
   </div>
 );
 
-const ProgressBar = ({ progress }: { progress: number }) => (
-  <div className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-sm flex items-center justify-center">
-    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
-      <div className="relative w-20 h-20 mx-auto mb-4">
-         <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-            <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
-            <path className="text-teal-600 transition-all duration-300 ease-out" strokeDasharray={`${progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
-         </svg>
-         <div className="absolute inset-0 flex items-center justify-center font-bold text-teal-700 text-sm">{Math.round(progress)}%</div>
+const UploadOverlay = ({progress}: {progress:number}) => (
+  <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center">
+    <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl text-center w-72">
+      <div className="relative w-16 h-16 mx-auto mb-4">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+          <path className="text-slate-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4"/>
+          <path className="text-teal-500 transition-all" strokeDasharray={`${progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4"/>
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center font-bold text-teal-400 text-sm">{Math.round(progress)}%</div>
       </div>
-      <h3 className="text-lg font-bold text-slate-800">Uploading Assets...</h3>
-      <p className="text-slate-500 text-xs mt-1">Please wait while we secure your files.</p>
+      <p className="font-bold text-white">Saving...</p>
     </div>
   </div>
 );
 
-export default function AdminProductsPage() {
+export default function UnifiedProductsPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<ActiveTab>("products");
+  const [view, setView] = useState<PageView>("list");
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<any[]>([]);
-  const [view, setView] = useState<"list" | "form">("list");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  
-  // Form State
-  const [formData, setFormData] = useState<ProductForm>(INITIAL_FORM);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  
-  // Upload State
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [editMode, setEditMode] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [toast, setToast] = useState<{msg:string;type:"success"|"error"}|null>(null);
 
-  // Delete Modal
-  const [deleteItem, setDeleteItem] = useState<any | null>(null);
+  // Products
+  const [products, setProducts] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("All");
+  const [formData, setFormData] = useState<ProductForm>(INITIAL_FORM);
+  const [thumbFile, setThumbFile] = useState<File|null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<any|null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Auth Check & Fetch
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) router.push("/admin/login");
-      else fetchProducts();
+  // Comparison
+  const [cmpData, setCmpData] = useState<ComparisonData>(INITIAL_CMP);
+  const [cmpSaving, setCmpSaving] = useState(false);
+  const [oldFile, setOldFile] = useState<File|null>(null);
+  const [newFile, setNewFile] = useState<File|null>(null);
+
+  useEffect(()=>{
+    const unsub = onAuthStateChanged(auth, (u)=>{
+      if (!u) router.push("/admin/login");
+      else { fetchProducts(); fetchComparison(); }
     });
-    return () => unsub();
-  }, [router]);
+    return ()=>unsub();
+  },[router]);
+
+  const showToast = (msg:string, type:"success"|"error") => {
+    setToast({msg,type}); setTimeout(()=>setToast(null),3000);
+  };
 
   const fetchProducts = async () => {
     try {
-      const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setProducts(data);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setLoading(false);
-    }
+      const snap = await getDocs(query(collection(db,"products"),orderBy("createdAt","desc")));
+      setProducts(snap.docs.map(d=>({id:d.id,...d.data()})));
+    } catch(e){ console.error(e); }
+    finally { setLoading(false); }
   };
 
-  const showToast = (msg: string, type: "success" | "error") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+  const fetchComparison = async () => {
+    try {
+      const snap = await getDoc(doc(db,"site_content","comparison_page"));
+      if (snap.exists()) setCmpData(snap.data() as ComparisonData);
+    } catch(e){ console.error(e); }
   };
 
-  // --- Handlers ---
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const uploadFile = (file:File, path:string): Promise<string> => new Promise((res,rej)=>{
+    const task = uploadBytesResumable(ref(storage,path), file);
+    task.on("state_changed",(s)=>setProgress((s.bytesTransferred/s.totalBytes)*100));
+    task.then(async(snap)=>res(await getDownloadURL(snap.ref))).catch(rej);
+  });
 
-  // Feature Handlers
-  const updateFeature = (index: number, value: string) => {
-    const newFeatures = [...formData.features];
-    newFeatures[index] = value;
-    setFormData({ ...formData, features: newFeatures });
-  };
-  const addFeature = () => setFormData({ ...formData, features: [...formData.features, ""] });
-  const removeFeature = (index: number) => {
-    const newFeatures = formData.features.filter((_, i) => i !== index);
-    setFormData({ ...formData, features: newFeatures });
-  };
-
-  // Spec Handlers
-  const updateSpec = (index: number, field: 'key' | 'value', val: string) => {
-    const newSpecs = [...formData.specs];
-    newSpecs[index][field] = val;
-    setFormData({ ...formData, specs: newSpecs });
-  };
-  const addSpec = () => setFormData({ ...formData, specs: [...formData.specs, { key: "", value: "" }] });
-  const removeSpec = (index: number) => {
-    const newSpecs = formData.specs.filter((_, i) => i !== index);
-    setFormData({ ...formData, specs: newSpecs });
-  };
-
-  // --- Optimized Upload Logic ---
-  const uploadFile = (file: File, path: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const storageRef = ref(storage, path);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          // You could track individual file progress here if needed
-        },
-        (error) => reject(error),
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        }
-      );
-    });
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.name) return showToast("Product Name is required", "error");
-    
-    setUploading(true);
-    setUploadProgress(0);
-
+  const handleProductSubmit = async () => {
+    if (!formData.name) return showToast("Product name required","error");
+    setUploading(true); setProgress(0);
     try {
       let thumbUrl = formData.thumbnail;
+      if (thumbFile) thumbUrl = await uploadFile(thumbFile,`products/thumbs/${Date.now()}_${thumbFile.name}`);
       let galleryUrls = [...formData.gallery];
-
-      // Calculate total operations for progress bar simulation
-      const totalUploads = (thumbnailFile ? 1 : 0) + galleryFiles.length;
-      let completedUploads = 0;
-
-      const updateProgress = () => {
-        completedUploads++;
-        setUploadProgress((completedUploads / (totalUploads + 1)) * 100); // +1 for Firestore save
-      };
-
-      // 1. Upload Thumbnail
-      if (thumbnailFile) {
-        thumbUrl = await uploadFile(thumbnailFile, `products/thumbs/${Date.now()}_${thumbnailFile.name}`);
-        updateProgress();
+      if (galleryFiles.length>0) {
+        const urls = await Promise.all(galleryFiles.map(f=>uploadFile(f,`products/gallery/${Date.now()}_${f.name}`)));
+        galleryUrls = [...galleryUrls,...urls];
       }
-
-      // 2. Upload Gallery (Parallel Execution for Speed)
-      if (galleryFiles.length > 0) {
-        const uploadPromises = galleryFiles.map(async (file) => {
-          const url = await uploadFile(file, `products/gallery/${Date.now()}_${file.name}`);
-          updateProgress();
-          return url;
-        });
-        const newUrls = await Promise.all(uploadPromises);
-        galleryUrls = [...galleryUrls, ...newUrls];
-      }
-
-      // 3. Prepare Data
-      const specsObject = formData.specs.reduce((acc, curr) => {
-        if (curr.key) {
-             const lines = curr.value.split('\n').map(l => l.trim()).filter(l => l !== "");
-             acc[curr.key] = lines.length > 1 ? lines : lines[0] || ""; 
-        }
-        return acc;
-      }, {} as Record<string, string | string[]>);
-
-      const cleanFeatures = formData.features.filter(f => f.trim() !== "");
-      const finalPrice = formData.price || "Price on Request";
-
+      const specsObj = formData.specs.reduce((a,c)=>{
+        if (c.key) { const lines=c.value.split("\n").map(l=>l.trim()).filter(Boolean); a[c.key]=lines.length>1?lines:lines[0]||""; }
+        return a;
+      },{} as Record<string,string|string[]>);
       const payload = {
-        name: formData.name,
-        category: formData.category,
-        price: finalPrice,
-        description: formData.description,
-        features: cleanFeatures,
-        specs: specsObject,
-        thumbnail: thumbUrl,
-        images: galleryUrls,
-        updatedAt: serverTimestamp(),
+        name:formData.name, category:formData.category, price:formData.price||"Price on Request",
+        description:formData.description, features:formData.features.filter(f=>f.trim()),
+        specs:specsObj, thumbnail:thumbUrl, images:galleryUrls, updatedAt:serverTimestamp(),
       };
-
-      // 4. Save to Firestore
-      if (editMode && formData.id) {
-        await updateDoc(doc(db, "products", formData.id), payload);
-        showToast("Product updated successfully", "success");
-      } else {
-        await addDoc(collection(db, "products"), { ...payload, createdAt: serverTimestamp() });
-        showToast("Product added successfully", "success");
-      }
-      setUploadProgress(100);
-
-      // Cleanup
-      setTimeout(() => {
-        resetForm();
-        fetchProducts();
-        setView("list");
-        setUploading(false);
-      }, 500);
-
-    } catch (error) {
-      console.error("Error saving product:", error);
-      showToast("Failed to save product.", "error");
-      setUploading(false);
-    }
+      if (editMode&&formData.id) await updateDoc(doc(db,"products",formData.id),payload);
+      else await addDoc(collection(db,"products"),{...payload,createdAt:serverTimestamp()});
+      showToast(editMode?"Product updated!":"Product added!","success");
+      setTimeout(()=>{ resetForm(); fetchProducts(); setView("list"); setUploading(false); },500);
+    } catch(e){ showToast("Failed to save","error"); setUploading(false); }
   };
 
   const confirmDelete = async () => {
     if (!deleteItem) return;
     setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, "products", deleteItem.id));
-      setProducts(prev => prev.filter(p => p.id !== deleteItem.id));
-      showToast("Product deleted.", "success");
-    } catch (e) {
-      console.error(e);
-      showToast("Failed to delete.", "error");
-    } finally {
-      setIsDeleting(false);
-      setDeleteItem(null);
-    }
+      await deleteDoc(doc(db,"products",deleteItem.id));
+      setProducts(p=>p.filter(x=>x.id!==deleteItem.id));
+      showToast("Deleted","success");
+    } catch(e){ showToast("Delete failed","error"); }
+    finally { setIsDeleting(false); setDeleteItem(null); }
   };
 
-  const handleEdit = (product: any) => {
-    const specsArray = product.specs 
-      ? Object.entries(product.specs).map(([key, value]) => ({ 
-          key, 
-          value: Array.isArray(value) ? value.join('\n') : String(value) 
-        }))
-      : [{ key: "", value: "" }];
-
+  const handleEdit = (p:any) => {
     setFormData({
-      id: product.id,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      description: product.description,
-      features: product.features || [""],
-      specs: specsArray,
-      thumbnail: product.thumbnail,
-      gallery: product.images || [],
+      id:p.id, name:p.name, category:p.category, price:p.price, description:p.description,
+      features:p.features||[""], gallery:p.images||[], thumbnail:p.thumbnail,
+      specs:p.specs ? Object.entries(p.specs).map(([key,value])=>({key,value:Array.isArray(value)?value.join("\n"):String(value)})) : [{key:"",value:""}],
     });
-    setEditMode(true);
-    setView("form");
-  };
-
-  const removeGalleryImage = (index: number) => {
-      const newGallery = formData.gallery.filter((_, i) => i !== index);
-      setFormData({ ...formData, gallery: newGallery });
+    setEditMode(true); setView("form");
   };
 
   const resetForm = () => {
-    setFormData(INITIAL_FORM);
-    setThumbnailFile(null);
-    setGalleryFiles([]);
-    setEditMode(false);
+    setFormData(INITIAL_FORM); setThumbFile(null); setGalleryFiles([]); setEditMode(false);
   };
 
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === "All" || p.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+  const handleSaveComparison = async () => {
+    setCmpSaving(true);
+    try {
+      let finalOld = cmpData.oldImage, finalNew = cmpData.newImage;
+      const ups: Promise<void>[] = [];
+      if (oldFile) ups.push(uploadFile(oldFile,`comparison/old_${Date.now()}`).then(u=>{ finalOld=u; }));
+      if (newFile) ups.push(uploadFile(newFile,`comparison/new_${Date.now()}`).then(u=>{ finalNew=u; }));
+      await Promise.all(ups);
+      const payload = {...cmpData, oldImage:finalOld, newImage:finalNew};
+      await setDoc(doc(db,"site_content","comparison_page"),payload);
+      setCmpData(payload); setOldFile(null); setNewFile(null);
+      showToast("Comparison saved!","success");
+    } catch(e){ showToast("Save failed","error"); }
+    finally { setCmpSaving(false); }
+  };
+
+  const filtered = products.filter(p=>{
+    const m = `${p.name} ${p.category}`.toLowerCase().includes(search.toLowerCase());
+    return m && (catFilter==="All"||p.category===catFilter);
   });
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-teal-600" size={40} /></div>;
+  if (loading) return <div className="flex justify-center py-32"><Loader2 className="animate-spin text-teal-500" size={32}/></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-slate-800 pb-20">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      
-      {uploading && <ProgressBar progress={uploadProgress} />}
+    <div className="pb-16">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+      {uploading && <UploadOverlay progress={progress}/>}
+      <DeleteModal isOpen={!!deleteItem} onClose={()=>setDeleteItem(null)} onConfirm={confirmDelete} title="Delete Product?" message={`Delete "${deleteItem?.name}"?`} isDeleting={isDeleting}/>
 
-      <DeleteModal 
-        isOpen={!!deleteItem} 
-        onClose={() => setDeleteItem(null)} 
-        onConfirm={confirmDelete} 
-        title="Delete Product?" 
-        message={`Are you sure you want to delete "${deleteItem?.name}"?`} 
-        isDeleting={isDeleting}
-      />
-
-      {/* --- Sticky Top Navbar --- */}
-      <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-16 md:top-0 z-20 px-4 lg:px-8 py-4 shadow-sm transition-all">
-        <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          
-          <div className="flex items-center gap-3">
-             {view === "form" && (
-                <button onClick={() => setView("list")} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors border border-slate-200">
-                   <ArrowLeft size={18} />
-                </button>
-             )}
-             <div>
-                <h1 className="text-xl font-bold text-slate-900 leading-none">Products</h1>
-                {view === "list" && <p className="text-xs text-slate-500 font-medium mt-1">{products.length} Items</p>}
-             </div>
-          </div>
-          
-          {view === "list" && (
-            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-               <div className="relative flex-1 sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search inventory..." 
-                    className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all shadow-sm" 
-                  />
-               </div>
-               
-               <div className="relative">
-                  <select 
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
-                      className="appearance-none w-full sm:w-40 pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium cursor-pointer outline-none hover:border-slate-300 focus:border-teal-500 shadow-sm"
-                  >
-                      <option value="All">All Categories</option>
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-               </div>
-
-               <button 
-                 onClick={() => { resetForm(); setView("form"); }} 
-                 className="px-5 py-2.5 bg-teal-600 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-teal-700 transition-all shadow-md shadow-teal-600/20 active:scale-95"
-               >
-                 <Plus size={18} /> <span className="hidden sm:inline">Add Product</span><span className="sm:hidden">Add</span>
-               </button>
-            </div>
-          )}
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        {view==="form" && <button onClick={()=>setView("list")} className="p-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg transition-colors"><ArrowLeft size={18} className="text-white"/></button>}
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-white">{view==="form"?(editMode?"Edit Product":"New Product"):"Products & Comparison"}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{view==="list"?`${products.length} products in catalogue`:""}</p>
         </div>
+        {view==="list" && activeTab==="products" && (
+          <button onClick={()=>{resetForm();setView("form");}} className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-sm font-bold transition-all shadow-sm">
+            <Plus size={16}/> Add Product
+          </button>
+        )}
+        {view==="list" && activeTab==="comparison" && (
+          <button onClick={handleSaveComparison} disabled={cmpSaving} className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50">
+            {cmpSaving?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>} Save Changes
+          </button>
+        )}
+        {view==="form" && (
+          <div className="flex gap-2">
+            <button onClick={()=>setView("list")} className="px-4 py-2 bg-slate-800 border border-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-700">Cancel</button>
+            <button onClick={handleProductSubmit} disabled={uploading} className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+              {uploading?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}{uploading?"Saving...":"Save"}
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="p-4 lg:p-8 max-w-[1920px] mx-auto">
-        
-        {/* --- LIST VIEW --- */}
-        {view === "list" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            {filteredProducts.length === 0 ? (
-                <div className="text-center py-24 px-6 flex flex-col items-center">
-                    <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mb-4">
-                        <Package className="text-slate-300" size={32} />
-                    </div>
-                    <h3 className="text-base font-bold text-slate-700">No products found</h3>
-                    <p className="text-sm text-slate-400 mt-1 max-w-xs">Adjust your search or filters, or add a new item to get started.</p>
-                </div>
+      {/* Tabs (only on list view) */}
+      {view==="list" && (
+        <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl mb-6 w-fit">
+          {([["products","Products",Package],["comparison","Comparison",Scale]] as [ActiveTab,string,any][]).map(([tab,label,Icon])=>(
+            <button key={tab} onClick={()=>setActiveTab(tab)}
+              className={`px-5 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab===tab?"bg-slate-700 text-white shadow":"text-slate-500 hover:text-slate-300"}`}>
+              <Icon size={14}/>{label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Products List */}
+      {view==="list" && activeTab==="products" && (
+        <>
+          <div className="flex flex-col sm:flex-row gap-3 mb-5">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search products..."
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white outline-none focus:border-teal-500 placeholder:text-slate-600"/>
+            </div>
+            <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
+              className="bg-slate-900 border border-slate-800 text-slate-300 text-sm rounded-xl px-3 py-2.5 outline-none">
+              <option value="All">All Categories</option>
+              {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            {filtered.length===0 ? (
+              <div className="py-20 text-center"><Package className="mx-auto text-slate-700 mb-3" size={32}/><p className="text-slate-500">No products found</p></div>
             ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase text-slate-500 tracking-wider font-bold">
-                        <th className="px-6 py-4 w-20">Image</th>
-                        <th className="px-6 py-4">Product Info</th>
-                        <th className="px-6 py-4">Category</th>
-                        <th className="px-6 py-4">Price</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead><tr className="border-b border-slate-800 text-[10px] uppercase text-slate-500 tracking-wider">
+                    <th className="px-5 py-3">Image</th>
+                    <th className="px-5 py-3">Product</th>
+                    <th className="px-5 py-3">Category</th>
+                    <th className="px-5 py-3">Price</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {filtered.map(p=>(
+                      <tr key={p.id} className="hover:bg-slate-800/50 transition-colors group">
+                        <td className="px-5 py-3.5">
+                          <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 relative overflow-hidden">
+                            {p.thumbnail?<Image src={p.thumbnail} alt="" fill className="object-cover" sizes="40px"/>
+                              :<div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-slate-600"/></div>}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="text-sm font-semibold text-white truncate max-w-[200px]">{p.name}</p>
+                          <p className="text-xs text-slate-500 truncate max-w-[200px]">{p.description}</p>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-xs font-bold rounded-md">{p.category}</span>
+                        </td>
+                        <td className="px-5 py-3.5"><span className="text-sm text-white">{p.price}</span></td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={()=>handleEdit(p)} className="p-2 text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors"><Edit2 size={16}/></button>
+                            <button onClick={()=>setDeleteItem(p)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredProducts.map((product) => (
-                        <tr key={product.id} className="hover:bg-slate-50/80 transition-colors group">
-                          <td className="px-6 py-4">
-                            <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 relative overflow-hidden shrink-0">
-                                {product.thumbnail ? (
-                                   <Image src={product.thumbnail} alt="" fill className="object-cover" sizes="48px" />
-                                ) : (
-                                   <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={20} /></div>
-                                )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                             <p className="font-bold text-slate-800 text-sm truncate max-w-[200px]">{product.name}</p>
-                             <p className="text-[11px] text-slate-400 truncate max-w-[200px] mt-0.5">{product.description}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                             <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                {product.category}
-                             </span>
-                          </td>
-                          <td className="px-6 py-4">
-                             <span className="text-sm font-semibold text-slate-700">{product.price}</span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleEdit(product)} className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
-                                   <Edit2 size={18} />
-                                </button>
-                                <button onClick={() => setDeleteItem(product)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                                   <Trash2 size={18} />
-                                </button>
-                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-        )}
+        </>
+      )}
 
-        {/* --- FORM VIEW --- */}
-        {view === "form" && (
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              
-             {/* Sticky Form Header for Actions */}
-             <div className="flex items-center justify-between mb-6 sticky top-28 md:static z-10 bg-gray-50/95 py-2 backdrop-blur">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                   {editMode ? "Edit Product" : "New Product"}
-                </h2>
-                <div className="flex gap-3">
-                   <button onClick={() => setView("list")} className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">Cancel</button>
-                   <button onClick={handleSubmit} disabled={uploading} className="px-6 py-2.5 text-sm font-bold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
-                      {uploading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} {uploading ? "Saving..." : "Save Product"}
-                   </button>
-                </div>
-             </div>
-
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* LEFT: Inputs */}
-                <div className="lg:col-span-2 space-y-6">
-                   {/* Basic Info Card */}
-                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8">
-                      <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-                         <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Package size={20}/></div>
-                         <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Basic Information</h3>
-                      </div>
-                      
-                      <div className="space-y-5">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div>
-                               <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Product Name <span className="text-red-500">*</span></label>
-                               <input name="name" value={formData.name} onChange={handleInputChange} className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all font-medium" placeholder="e.g. Hydraulic Press 50T" />
-                            </div>
-                            <div>
-                               <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Price</label>
-                               <input name="price" value={formData.price} onChange={handleInputChange} className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all font-medium" placeholder="e.g. ₹ 45,000" />
-                            </div>
-                         </div>
-                         
-                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Description</label>
-                            <textarea name="description" value={formData.description} onChange={handleInputChange} rows={4} className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 outline-none transition-all resize-y" placeholder="Describe the product details, usage, and benefits..." />
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* Features Card */}
-                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8">
-                      <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                          <div className="flex items-center gap-2">
-                             <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><CheckCircle2 size={20}/></div>
-                             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Key Features</h3>
-                          </div>
-                          <button onClick={addFeature} className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition-colors border border-teal-100">+ Add Feature</button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {formData.features.map((feature, idx) => (
-                             <div key={idx} className="flex gap-2 group">
-                                <input value={feature} onChange={(e) => updateFeature(idx, e.target.value)} className="flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:border-teal-500 outline-none transition-all" placeholder={`Feature ${idx + 1}`} />
-                                <button onClick={() => removeFeature(idx)} className="text-slate-300 hover:text-red-500 px-2 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"><X size={18} /></button>
-                             </div>
-                          ))}
-                      </div>
-                   </div>
-
-                   {/* Specs Card */}
-                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8">
-                      <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                          <div className="flex items-center gap-2">
-                             <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><FileText size={20}/></div>
-                             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Technical Specifications</h3>
-                          </div>
-                          <button onClick={addSpec} className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition-colors border border-teal-100">+ Add Spec</button>
-                      </div>
-                      <div className="space-y-3">
-                        {formData.specs.map((spec, idx) => (
-                          <div key={idx} className="flex gap-3 items-start group">
-                             <input value={spec.key} onChange={(e) => updateSpec(idx, 'key', e.target.value)} className="w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-teal-500 outline-none font-bold text-slate-700 transition-all" placeholder="Label (e.g. Weight)" />
-                             <textarea value={spec.value} onChange={(e) => updateSpec(idx, 'value', e.target.value)} rows={1} className="flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:border-teal-500 outline-none min-h-[46px] resize-y transition-all" placeholder="Value (e.g. 500 KG)" />
-                             <button onClick={() => removeSpec(idx)} className="text-slate-300 hover:text-red-500 p-3 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"><X size={18} /></button>
-                          </div>
-                        ))}
-                      </div>
-                   </div>
-                </div>
-
-                {/* RIGHT: Sidebar (Media & Category) */}
-                <div className="space-y-6">
-                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                       <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Categorization</h3>
-                       <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-2">Category</label>
-                          <div className="relative">
-                            <select name="category" value={formData.category} onChange={handleInputChange} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-teal-500 outline-none appearance-none cursor-pointer font-medium hover:bg-slate-100 transition-colors">
-                               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                            <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={16} />
-                          </div>
-                       </div>
-                   </div>
-
-                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                       <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-                          <div className="p-1.5 bg-pink-50 text-pink-600 rounded-md"><ImageIcon size={16}/></div>
-                          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Media Assets</h3>
-                       </div>
-                       
-                       <div className="mb-6">
-                          <label className="block text-xs font-bold text-slate-500 mb-2">Thumbnail (Main Image)</label>
-                          <div className="relative aspect-video rounded-xl border-2 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/30 transition-all flex items-center justify-center overflow-hidden cursor-pointer group bg-slate-50">
-                             <input type="file" accept="image/*" onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                             {thumbnailFile ? (
-                                 <Image src={URL.createObjectURL(thumbnailFile)} alt="" fill className="object-cover" />
-                             ) : formData.thumbnail ? (
-                                 <Image src={formData.thumbnail} alt="" fill className="object-cover" />
-                             ) : (
-                                 <div className="text-center text-slate-400 group-hover:text-teal-600 transition-colors">
-                                    <UploadCloud className="mx-auto mb-2" size={24}/>
-                                    <span className="text-xs font-bold">Click to Upload</span>
-                                 </div>
-                             )}
-                          </div>
-                       </div>
-
-                       <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-2">Product Gallery</label>
-                          <div className="grid grid-cols-3 gap-2">
-                             {formData.gallery.map((url, idx) => (
-                                 <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden group shadow-sm">
-                                     <Image src={url} alt="" fill className="object-cover" />
-                                     <button onClick={() => removeGalleryImage(idx)} className="absolute inset-0 bg-black/40 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
-                                 </div>
-                             ))}
-                             {galleryFiles.map((file, idx) => (
-                                 <div key={`new-${idx}`} className="relative aspect-square rounded-lg border border-teal-200 overflow-hidden group shadow-sm opacity-70">
-                                     <Image src={URL.createObjectURL(file)} alt="" fill className="object-cover" />
-                                     <div className="absolute inset-0 flex items-center justify-center bg-white/50"><Loader2 className="animate-spin text-teal-600" size={16}/></div>
-                                 </div>
-                             ))}
-                             
-                             <div className="aspect-square rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-teal-50/50 hover:border-teal-300 flex items-center justify-center relative cursor-pointer transition-colors text-slate-300 hover:text-teal-500">
-                                 <input type="file" multiple accept="image/*" onChange={(e) => setGalleryFiles([...galleryFiles, ...Array.from(e.target.files || [])])} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                 <Plus size={24} />
-                             </div>
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-2 text-center">
-                             {formData.gallery.length + galleryFiles.length} images total
-                          </p>
-                       </div>
-                   </div>
-                </div>
-             </div>
+      {/* Comparison Editor */}
+      {view==="list" && activeTab==="comparison" && (
+        <div className="space-y-6">
+          {/* Header fields */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Page Header</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <input value={cmpData.headerTitle} onChange={e=>setCmpData({...cmpData,headerTitle:e.target.value})} placeholder="Main Title" className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+              <input value={cmpData.headerDesc} onChange={e=>setCmpData({...cmpData,headerDesc:e.target.value})} placeholder="Subtitle" className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Cards side by side */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Old Card */}
+            <div className="bg-slate-900 border border-red-900/40 rounded-xl p-5">
+              <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">❌ Old Method</p>
+              <div className="space-y-3">
+                <input value={cmpData.oldTitle} onChange={e=>setCmpData({...cmpData,oldTitle:e.target.value})} placeholder="Title" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+                <input value={cmpData.oldDesc} onChange={e=>setCmpData({...cmpData,oldDesc:e.target.value})} placeholder="Description" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+                <div className="relative border-2 border-dashed border-slate-700 rounded-lg h-10 flex items-center justify-center cursor-pointer hover:border-red-500/50 transition-colors overflow-hidden">
+                  <input type="file" accept="image/*" onChange={e=>setOldFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                  {oldFile?<span className="text-xs text-red-400 font-medium truncate px-2">{oldFile.name}</span>
+                    :cmpData.oldImage?<span className="text-xs text-slate-400 flex items-center gap-1"><ImageIcon size={12}/> Image set</span>
+                    :<span className="text-xs text-slate-500 flex items-center gap-1"><UploadCloud size={12}/> Upload image</span>}
+                </div>
+                <div className="space-y-2">
+                  {cmpData.oldPoints.map((p,i)=>(
+                    <div key={i} className="flex gap-2">
+                      <input value={p} onChange={e=>{const pts=[...cmpData.oldPoints];pts[i]=e.target.value;setCmpData({...cmpData,oldPoints:pts});}} className="flex-1 bg-slate-800 border border-red-900/30 rounded-lg px-3 py-1.5 text-xs text-white outline-none"/>
+                      <button onClick={()=>setCmpData({...cmpData,oldPoints:cmpData.oldPoints.filter((_,j)=>j!==i)})} className="text-slate-600 hover:text-red-400"><X size={14}/></button>
+                    </div>
+                  ))}
+                  <button onClick={()=>setCmpData({...cmpData,oldPoints:[...cmpData.oldPoints,""]})} className="text-xs text-red-400 hover:underline">+ Add Point</button>
+                </div>
+              </div>
+            </div>
+            {/* New Card */}
+            <div className="bg-slate-900 border border-teal-900/40 rounded-xl p-5">
+              <p className="text-xs font-bold text-teal-400 uppercase tracking-wider mb-3">✅ New Method</p>
+              <div className="space-y-3">
+                <input value={cmpData.newTitle} onChange={e=>setCmpData({...cmpData,newTitle:e.target.value})} placeholder="Title" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+                <input value={cmpData.newDesc} onChange={e=>setCmpData({...cmpData,newDesc:e.target.value})} placeholder="Description" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500"/>
+                <div className="relative border-2 border-dashed border-slate-700 rounded-lg h-10 flex items-center justify-center cursor-pointer hover:border-teal-500/50 transition-colors overflow-hidden">
+                  <input type="file" accept="image/*" onChange={e=>setNewFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                  {newFile?<span className="text-xs text-teal-400 font-medium truncate px-2">{newFile.name}</span>
+                    :cmpData.newImage?<span className="text-xs text-slate-400 flex items-center gap-1"><ImageIcon size={12}/> Image set</span>
+                    :<span className="text-xs text-slate-500 flex items-center gap-1"><UploadCloud size={12}/> Upload image</span>}
+                </div>
+                <div className="space-y-2">
+                  {cmpData.newPoints.map((p,i)=>(
+                    <div key={i} className="flex gap-2">
+                      <input value={p} onChange={e=>{const pts=[...cmpData.newPoints];pts[i]=e.target.value;setCmpData({...cmpData,newPoints:pts});}} className="flex-1 bg-slate-800 border border-teal-900/30 rounded-lg px-3 py-1.5 text-xs text-white outline-none"/>
+                      <button onClick={()=>setCmpData({...cmpData,newPoints:cmpData.newPoints.filter((_,j)=>j!==i)})} className="text-slate-600 hover:text-red-400"><X size={14}/></button>
+                    </div>
+                  ))}
+                  <button onClick={()=>setCmpData({...cmpData,newPoints:[...cmpData.newPoints,""]})} className="text-xs text-teal-400 hover:underline">+ Add Point</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Metrics table */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comparison Table</p>
+              <button onClick={()=>setCmpData({...cmpData,metrics:[...cmpData.metrics,{name:"",old:"",new:""}]})} className="text-xs text-teal-400 hover:underline flex items-center gap-1"><Plus size={12}/> Add Row</button>
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-500 uppercase px-1">
+                <div className="col-span-4">Feature</div><div className="col-span-3">Old Value</div><div className="col-span-4">New Value</div>
+              </div>
+              {cmpData.metrics.map((row,i)=>(
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-4"><input value={row.name} onChange={e=>{const m=[...cmpData.metrics];m[i]={...m[i],name:e.target.value};setCmpData({...cmpData,metrics:m});}} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none" placeholder="Feature"/></div>
+                  <div className="col-span-3"><input value={row.old} onChange={e=>{const m=[...cmpData.metrics];m[i]={...m[i],old:e.target.value};setCmpData({...cmpData,metrics:m});}} className="w-full bg-red-950/30 border border-red-900/30 rounded-lg px-3 py-1.5 text-xs text-red-300 outline-none" placeholder="Old"/></div>
+                  <div className="col-span-4"><input value={row.new} onChange={e=>{const m=[...cmpData.metrics];m[i]={...m[i],new:e.target.value};setCmpData({...cmpData,metrics:m});}} className="w-full bg-teal-950/30 border border-teal-900/30 rounded-lg px-3 py-1.5 text-xs text-teal-300 outline-none" placeholder="New"/></div>
+                  <div className="col-span-1 text-center"><button onClick={()=>setCmpData({...cmpData,metrics:cmpData.metrics.filter((_,j)=>j!==i)})} className="text-slate-600 hover:text-red-400"><Trash2 size={14}/></button></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Form */}
+      {view==="form" && (
+        <div className="space-y-5">
+          {/* Basic Info */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Basic Info</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input name="name" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} placeholder="Product Name *" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-teal-500"/>
+              <input name="price" value={formData.price} onChange={e=>setFormData({...formData,price:e.target.value})} placeholder="Price (e.g. ₹45,000)" className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-teal-500"/>
+              <select value={formData.category} onChange={e=>setFormData({...formData,category:e.target.value})} className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-teal-500">
+                {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+              <textarea value={formData.description} onChange={e=>setFormData({...formData,description:e.target.value})} placeholder="Description" rows={1} className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-teal-500 resize-none"/>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Features */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="flex justify-between mb-3">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Key Features</p>
+                <button onClick={()=>setFormData({...formData,features:[...formData.features,""]})} className="text-xs text-teal-400 hover:underline">+ Add</button>
+              </div>
+              <div className="space-y-2">
+                {formData.features.map((f,i)=>(
+                  <div key={i} className="flex gap-2 group">
+                    <input value={f} onChange={e=>{const fs=[...formData.features];fs[i]=e.target.value;setFormData({...formData,features:fs});}} className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-teal-500" placeholder={`Feature ${i+1}`}/>
+                    <button onClick={()=>setFormData({...formData,features:formData.features.filter((_,j)=>j!==i)})} className="text-slate-600 hover:text-red-400 px-1 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Specs */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="flex justify-between mb-3">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Specifications</p>
+                <button onClick={()=>setFormData({...formData,specs:[...formData.specs,{key:"",value:""}]})} className="text-xs text-teal-400 hover:underline">+ Add</button>
+              </div>
+              <div className="space-y-2">
+                {formData.specs.map((s,i)=>(
+                  <div key={i} className="flex gap-2 group">
+                    <input value={s.key} onChange={e=>{const sp=[...formData.specs];sp[i]={...sp[i],key:e.target.value};setFormData({...formData,specs:sp});}} className="w-1/3 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none font-bold" placeholder="Label"/>
+                    <input value={s.value} onChange={e=>{const sp=[...formData.specs];sp[i]={...sp[i],value:e.target.value};setFormData({...formData,specs:sp});}} className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none" placeholder="Value"/>
+                    <button onClick={()=>setFormData({...formData,specs:formData.specs.filter((_,j)=>j!==i)})} className="text-slate-600 hover:text-red-400 px-1 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Media */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Media</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <p className="text-xs text-slate-500 mb-2">Thumbnail</p>
+                <div className="relative aspect-video border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer hover:border-teal-500 transition-colors bg-slate-800">
+                  <input type="file" accept="image/*" onChange={e=>setThumbFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                  {thumbFile?<Image src={URL.createObjectURL(thumbFile)} alt="" fill className="object-cover"/>
+                    :formData.thumbnail?<Image src={formData.thumbnail} alt="" fill className="object-cover"/>
+                    :<div className="text-center text-slate-600"><UploadCloud className="mx-auto mb-1" size={24}/><p className="text-xs">Upload thumbnail</p></div>}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-2">Gallery ({formData.gallery.length+galleryFiles.length} images)</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {formData.gallery.map((url,i)=>(
+                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-slate-700 group">
+                      <Image src={url} alt="" fill className="object-cover"/>
+                      <button onClick={()=>setFormData({...formData,gallery:formData.gallery.filter((_,j)=>j!==i)})} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center"><Trash2 size={14} className="text-white"/></button>
+                    </div>
+                  ))}
+                  {galleryFiles.map((f,i)=>(
+                    <div key={`new-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-teal-800 opacity-70">
+                      <Image src={URL.createObjectURL(f)} alt="" fill className="object-cover"/>
+                    </div>
+                  ))}
+                  <div className="aspect-square border-2 border-dashed border-slate-700 rounded-lg hover:border-teal-500 flex items-center justify-center relative cursor-pointer transition-colors bg-slate-800 text-slate-600 hover:text-teal-400">
+                    <input type="file" multiple accept="image/*" onChange={e=>setGalleryFiles([...galleryFiles,...Array.from(e.target.files||[])])} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                    <Plus size={20}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
