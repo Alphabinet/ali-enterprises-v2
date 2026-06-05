@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase"; 
 import { collection, getDocs } from "firebase/firestore";
 import { 
@@ -12,8 +11,7 @@ import {
   Factory,
   XCircle,
   PackageOpen,
-  X,
-  PhoneCall
+  ImageIcon
 } from "lucide-react";
 
 // --- Types ---
@@ -29,6 +27,9 @@ interface Product {
 
 const MODELS = ["All", "ABP-Series (Auto)", "HP-Series (Hydraulic)", "Mixer-Pro", "Paver-X", "Industrial"];
 
+// A tiny 1x1 transparent PNG base64 to use as an instant placeholder
+const PLACEHOLDER_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mO88OjRf/QA1wM2Hk7/EwAAAABJRU5ErkJggg==";
+
 export default function CorporateProductCatalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,10 +37,6 @@ export default function CorporateProductCatalog() {
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedModel, setSelectedModel] = useState("All");
-
-  // Exit Intent / Popup State
-  const [showExitIntent, setShowExitIntent] = useState(false);
-  const [hasShownExitIntent, setHasShownExitIntent] = useState(false);
 
   // Fetch Data from Firebase
   useEffect(() => {
@@ -71,32 +68,6 @@ export default function CorporateProductCatalog() {
     loadData();
   }, []);
 
-  // --- 1. TIMER LOGIC (Popup after 20 seconds) ---
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Only show if it hasn't been shown yet (e.g. by exit intent)
-      if (!hasShownExitIntent) {
-        setShowExitIntent(true);
-        setHasShownExitIntent(true);
-      }
-    }, 20000); // 20000 milliseconds = 20 Seconds
-
-    return () => clearTimeout(timer);
-  }, [hasShownExitIntent]);
-
-  // --- 2. EXIT INTENT LOGIC (Triggers when mouse leaves top) ---
-  useEffect(() => {
-    const handleMouseLeave = (e: MouseEvent) => {
-      if (e.clientY <= 0 && !hasShownExitIntent) {
-        setShowExitIntent(true);
-        setHasShownExitIntent(true);
-      }
-    };
-
-    document.addEventListener("mouseleave", handleMouseLeave);
-    return () => document.removeEventListener("mouseleave", handleMouseLeave);
-  }, [hasShownExitIntent]);
-
   // Filter Logic
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -108,78 +79,23 @@ export default function CorporateProductCatalog() {
     });
   }, [products, searchTerm, selectedModel]);
 
-  // Clear filters handler
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedModel("All");
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20">
+    <div className="bg-slate-50 font-sans text-slate-800">
       
-      {/* --- POPUP MODAL --- */}
-      <AnimatePresence>
-        {showExitIntent && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative overflow-hidden"
-            >
-              <button 
-                onClick={() => setShowExitIntent(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 transition-colors"
-              >
-                <X size={24} />
-              </button>
-
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-4">
-                  <PackageOpen size={32} />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Wait! Don't Miss Out</h2>
-                <p className="text-slate-600 mb-6">
-                  Before you go, would you like to speak with an expert about our customized machinery solutions?
-                </p>
-                
-                <div className="flex flex-col sm:flex-row gap-3 w-full">
-                  <a href="/contactus" className="flex-1 bg-teal-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-teal-700 transition flex items-center justify-center gap-2">
-                    <PhoneCall size={18} /> Get Free Quote
-                  </a>
-                  <button 
-                    onClick={() => setShowExitIntent(false)}
-                    className="flex-1 bg-slate-100 text-slate-700 py-3 px-6 rounded-xl font-bold hover:bg-slate-200 transition"
-                  >
-                    Continue Browsing
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- HEADER & SEARCH SECTION (Scrollable, NOT Sticky) --- */}
+      {/* --- HEADER & SEARCH SECTION --- */}
       <div className="bg-white border-b border-slate-200 pt-10 pb-8 shadow-sm">
         <div className="container mx-auto px-4 lg:max-w-7xl">
-           
-           {/* Title */}
            <div className="mb-4">
              <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-2">
                Machines <span className="text-teal-600">Catalog</span>
              </h1>
            </div>
-
-           {/* Search & Filters Bar (Static) */}
            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-
-             {/* Search Input */}
              <div className="relative w-full md:w-80 group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors" size={18} />
                 <input 
@@ -196,12 +112,12 @@ export default function CorporateProductCatalog() {
                 )}
              </div>
            </div>
-
         </div>
       </div>
 
       {/* --- CONTENT GRID --- */}
-      <div className="container mx-auto px-4 lg:max-w-7xl py-10">
+      {/* min-h-[70vh] prevents layout shift by forcing content area to take up most of the viewport while loading */}
+      <div className="container mx-auto px-4 lg:max-w-7xl py-10 min-h-[70vh]">
          
          {loading ? (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -215,7 +131,7 @@ export default function CorporateProductCatalog() {
              ))}
            </div>
          ) : filteredProducts.length === 0 ? (
-           <div className="flex flex-col items-center justify-center py-20 text-center">
+           <div className="flex flex-col items-center justify-center py-20 text-center h-full">
              <div className="bg-slate-100 p-6 rounded-full mb-4">
                 <PackageOpen size={48} className="text-slate-400" />
              </div>
@@ -232,15 +148,13 @@ export default function CorporateProductCatalog() {
            </div>
          ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <AnimatePresence mode='popLayout'>
-                 {filteredProducts.map((product, index) => (
-                   <ProductCard 
-                     key={product.id} 
-                     product={product} 
-                     index={index} 
-                   />
-                 ))}
-              </AnimatePresence>
+              {filteredProducts.map((product, index) => (
+                <ProductCard 
+                  key={product.id} 
+                  product={product} 
+                  index={index} 
+                />
+              ))}
            </div>
          )}
 
@@ -250,82 +164,73 @@ export default function CorporateProductCatalog() {
 }
 
 // ----------------------------------------------------------------------
-// PRODUCT CARD
+// PRODUCT CARD - STRIPPED OF ANIMATIONS FOR RAW SPEED
 // ----------------------------------------------------------------------
 function ProductCard({ product, index }: { product: Product, index: number }) {
   const previewFeatures = product.features?.slice(0, 3) || [];
 
   return (
-    <motion.div 
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
-      className="group relative bg-white rounded-[2rem] border border-slate-200 hover:border-teal-200 shadow-sm hover:shadow-2xl transition-all duration-300 flex flex-col overflow-hidden h-full"
-    >
+    // Card is now the clickable link, reducing DOM complexity
+    <Link href={`/products/${product.id}`} className="group relative bg-white rounded-[2rem] border border-slate-200 hover:border-teal-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full cursor-pointer">
       
       {/* 1. Image Area */}
       <div className="relative h-60 p-6 bg-gradient-to-b from-slate-50 to-white flex items-center justify-center overflow-hidden">
-         {/* Category Badge */}
-         <div className="absolute top-5 left-5 z-10">
+         
+         <div className="absolute top-5 left-5 z-20">
             <span className="bg-white/90 backdrop-blur text-[10px] font-black uppercase tracking-widest text-slate-800 px-3 py-1 rounded-md shadow-sm border border-slate-100">
                {product.modelSeries}
             </span>
          </div>
-         
+
+         {/* Highly Optimized Next.js Image */}
          <Image 
            src={product.thumbnail} 
            alt={product.name}
            fill
-           priority={index < 6}
-           className="object-contain transition-transform duration-500 group-hover:scale-110 drop-shadow-lg"
+           priority={index < 6} 
+           quality={60} 
+           decoding="async"
+           placeholder="blur"
+           blurDataURL={PLACEHOLDER_IMAGE}
+           className="object-contain z-10 transition-transform duration-500 group-hover:scale-105 drop-shadow-sm p-4"
            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
          />
-
-         {/* Overlay Button (Desktop) */}
-         <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors duration-300 flex items-center justify-center">
-            <Link href={`/products/${product.id}`}>
-               <div className="opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 bg-white text-teal-700 px-6 py-2 rounded-full font-bold shadow-xl flex items-center gap-2 transform hover:scale-105">
-                  View Details <ArrowRight size={16} />
-               </div>
-            </Link>
-         </div>
       </div>
 
       {/* 2. Content Area */}
-      <div className="p-6 pt-2 flex flex-col flex-1">
+      <div className="p-6 pt-2 flex flex-col flex-1 relative z-30 bg-white border-t border-slate-50">
          <div className="mb-4">
-            <Link href={`/products/${product.id}`} className="hover:text-teal-600 transition-colors">
-               <h3 className="text-xl font-extrabold text-slate-900 line-clamp-1" title={product.name}>
-                 {product.name}
-               </h3>
-            </Link>
+            <h3 className="text-xl font-extrabold text-slate-900 line-clamp-1 group-hover:text-teal-600 transition-colors" title={product.name}>
+              {product.name}
+            </h3>
             <p className="text-sm text-slate-500 mt-2 line-clamp-2 h-10">
                {product.description}
             </p>
          </div>
 
-         {/* Features List (Compact) */}
-         <div className="mt-auto pt-4 border-t border-slate-100">
-            <div className="space-y-2">
+         <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div className="space-y-1.5 flex-1 pr-4">
                {previewFeatures.map((feature, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                      <Factory size={12} className="text-teal-500" />
+                  <div key={idx} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+                      <Factory size={10} className="text-teal-500 shrink-0" />
                       <span className="truncate">{feature}</span>
                   </div>
                ))}
             </div>
+            
+            {/* Desktop visual indicator */}
+            <div className="hidden md:flex w-8 h-8 rounded-full bg-slate-50 items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0">
+               <ArrowRight size={16} />
+            </div>
          </div>
          
-         {/* Mobile Only Button */}
-         <div className="mt-4 md:hidden">
-            <Link href={`/products/${product.id}`} className="block w-full text-center py-3 bg-slate-900 text-white rounded-xl font-bold text-sm">
+         <div className="mt-5 md:hidden">
+            <div className="w-full text-center py-3 bg-slate-100 text-teal-700 rounded-xl font-bold text-sm group-hover:bg-teal-600 group-hover:text-white transition-colors">
                View Specifications
-            </Link>
+            </div>
          </div>
 
       </div>
-    </motion.div>
+    </Link>
   );
 }

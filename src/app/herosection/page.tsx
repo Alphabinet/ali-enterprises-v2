@@ -9,7 +9,6 @@ import React, {
   TouchEvent
 } from "react";
 import Image from "next/image";
-import ReactDOM from "react-dom";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase"; 
 import { 
@@ -20,7 +19,8 @@ import {
   ArrowRight,
   Pause,
   MapPin,
-  Quote
+  Quote,
+  ImageIcon
 } from "lucide-react";
 
 // --- Constants --- //
@@ -38,7 +38,6 @@ type BaseSlide = {
 };
 
 // --- STATIC INITIAL SLIDE ---
-// TIP: Ensure "/machines/default.png" is a WEBP file less than 100KB for best results
 const STATIC_SLIDE_SRC = "/machines/default.png";
 const STATIC_SLIDE: BaseSlide = {
     id: "static-hero-1",
@@ -63,6 +62,7 @@ const FOUNDER_SLIDES = [
                 className="object-cover object-top transition-transform duration-700 group-hover:scale-110"
                 sizes="(max-width: 768px) 120px, 180px"
                 priority
+                unoptimized={true} // Skip Next.js optimization for immediate raw load
               />
             </div>
           </div>
@@ -209,9 +209,23 @@ const HeroSection = () => {
       }
     };
     
-    // Slight delay to prevent blocking the Main Thread during initial render
-    setTimeout(() => fetchSlides(), 50);
+    fetchSlides();
   }, []);
+
+  // --- Background Image Preloader ---
+  // This physically downloads the next image into the browser cache
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    
+    const nextIdx = (currentIndex + 1) % slides.length;
+    const nextSlide = slides[nextIdx];
+    
+    if (nextSlide && nextSlide.type === "image") {
+      const img = new window.Image();
+      img.src = nextSlide.src;
+    }
+  }, [currentIndex, slides]);
+
 
   // --- Navigation Logic ---
   const navigateMain = useCallback((direction: "next" | "prev") => {
@@ -271,38 +285,9 @@ const HeroSection = () => {
     }, 4000);
   };
 
-  const nextSlideIndex = (currentIndex + 1) % slides.length;
-  const nextSlide = slides[nextSlideIndex];
-
-  // Helper to inject Preload Link into Head
-  const PreloadLink = () => {
-    return ReactDOM.createPortal(
-        <link rel="preload" as="image" href={STATIC_SLIDE_SRC} fetchPriority="high" />,
-        document.head
-    );
-  };
-
   return (
     <section className="w-full bg-slate-50 flex flex-col lg:flex-row h-[90vh] lg:h-[750px] overflow-hidden lg:p-4 gap-3 relative">
       
-      {/* 1. MANUAL PRELOAD TRIGGER */}
-      <PreloadLink />
-      <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
-
-      {/* 2. HIDDEN NEXT-SLIDE PRELOADER */}
-      <div className="hidden">
-         {nextSlide && nextSlide.type === 'image' && (
-            <Image 
-              src={nextSlide.src} 
-              alt="preload" 
-              width={1200} 
-              height={800} 
-              priority={false}
-              loading="eager" 
-            />
-         )}
-      </div>
-
       {/* =========================================================
           LEFT: MAIN SLIDER
       ========================================================= */}
@@ -313,6 +298,11 @@ const HeroSection = () => {
         onTouchStart={(e) => onTouchStart(e, 'main')}
         onTouchEnd={(e) => onTouchEnd(e, 'main')}
       >
+        {/* CSS Only Background Skeleton for entirely empty states */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-0">
+             <ImageIcon size={48} className="text-slate-800 animate-pulse" />
+        </div>
+
         {!isMainPaused && !videoPlaying && slides.length > 1 && (
             <div className="absolute top-0 left-0 h-1 bg-teal-500/50 z-30 w-full">
                 <div 
@@ -324,7 +314,7 @@ const HeroSection = () => {
         )}
 
         <div
-          className="flex h-full transition-transform duration-[800ms] cubic-bezier(0.2, 0.8, 0.2, 1) will-change-transform"
+          className="flex h-full transition-transform duration-[800ms] cubic-bezier(0.2, 0.8, 0.2, 1) will-change-transform z-10 relative"
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {slides.length > 0 ? slides.map((slide, idx) => (
@@ -342,17 +332,13 @@ const HeroSection = () => {
                     src={slide.src}
                     alt={slide.alt}
                     fill
-                    // 3. REMOVE ANIMATION FOR FIRST SLIDE TO SPEED UP PAINT
-                    className={`object-cover object-center ${idx === 0 ? '' : 'transition-transform duration-[10s] hover:scale-105'}`}
-                    priority={idx === 0}
-                    fetchPriority={idx === 0 ? "high" : "auto"}
-                    loading={idx === 0 ? "eager" : "lazy"}
+                    className="object-cover object-center" // Removed scale animation for cleaner load
+                    priority={idx === 0} 
+                    unoptimized={true} // Bypasses Next.js image server for raw CDN speed
                     sizes="(max-width: 768px) 100vw, 75vw"
-                    quality={80} // Slightly reduced quality for speed
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90">
                       <div className="absolute bottom-6 left-5 lg:bottom-12 lg:left-10 max-w-[90%] lg:max-w-[80%]">
-                          {/* 4. HARDCODED VISIBILITY FOR FIRST SLIDE TO AVOID JS FLICKER */}
                           <h3 
                             className={`text-white text-xl sm:text-2xl lg:text-5xl font-bold leading-tight drop-shadow-lg transform transition-all duration-700 
                             ${idx === 0 ? 'translate-y-0 opacity-100' : (currentIndex === idx ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0')}`}
@@ -368,11 +354,7 @@ const HeroSection = () => {
                 </div>
               )}
             </div>
-          )) : (
-            <div className="min-w-full h-full flex items-center justify-center text-slate-500 bg-slate-100">
-                <p>No slides available</p>
-            </div>
-          )}
+          )) : null}
         </div>
 
         {/* Controls */}

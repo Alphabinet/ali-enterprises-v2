@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Factory, Zap, ShieldCheck, CheckCircle2,
   MessageCircle, FileDown, PhoneCall, FileText, ChevronRight, ChevronLeft, Loader2,
-  Hammer, Wrench, Settings, Activity, PlayCircle
+  Hammer, Wrench, Settings, Activity, PlayCircle, ImageIcon
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import ROICalculator from "@/components/ROICalculator";
 import Link from "next/link";
+import { siteConfig } from "@/config/site"; // Import the central config
 
 // Types
 export interface Product {
@@ -29,6 +28,7 @@ export interface Product {
 export default function ProductClient({ product }: { product: Product }) {
   const [activeImage, setActiveImage] = useState<number>(0);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true); // Track main image loading state
 
   // Mobile Swipe State
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -40,10 +40,13 @@ export default function ProductClient({ product }: { product: Product }) {
 
   const isVideo = (url: string) => url?.match(/\.(mp4|webm|ogg)$/i) || url?.includes("video");
 
+  // Reset loading state whenever the active image changes
+  useEffect(() => {
+    setIsImageLoading(true);
+  }, [activeImage]);
+
   // --- PRELOAD LOGIC ---
-  // Calculate next and previous indices to silently preload them in the background
   const nextIndex = (activeImage + 1) % displayImages.length;
-  const prevIndex = (activeImage - 1 + displayImages.length) % displayImages.length;
 
   // --- SLIDER CONTROLS ---
   const handleNext = useCallback(() => {
@@ -81,7 +84,7 @@ export default function ProductClient({ product }: { product: Product }) {
       const blob = await res.blob();
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
-        const startTimeout = setTimeout(() => reject("Timeout"), 5000); // 5s timeout
+        const startTimeout = setTimeout(() => reject("Timeout"), 5000); 
         reader.onloadend = () => {
           clearTimeout(startTimeout);
           resolve(reader.result as string);
@@ -97,6 +100,9 @@ export default function ProductClient({ product }: { product: Product }) {
   const handleDownloadBrochure = async () => {
     setIsGeneratingPdf(true);
     try {
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
+
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -109,12 +115,12 @@ export default function ProductClient({ product }: { product: Product }) {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
-      doc.text("ALI ENTERPRISES", margin, 20);
+      doc.text(siteConfig.name.toUpperCase(), margin, 20);
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text("Industrial Machinery Manufacturers & Exporters", margin, 28);
-      doc.text("www.alienterprises.in  |  +91 97563 00040", margin, 34);
+      doc.text(siteConfig.description, margin, 28);
+      doc.text(`${siteConfig.websiteUrl.replace('https://', '')}  |  ${siteConfig.phoneDisplay}`, margin, 34);
 
       // Product Title
       let yPos = 55;
@@ -196,7 +202,7 @@ export default function ProductClient({ product }: { product: Product }) {
       doc.setFontSize(11);
       doc.setTextColor(13, 148, 136);
       doc.setFont("helvetica", "bold");
-      doc.text("Contact: +91 97563 00040", margin, footerY + 11);
+      doc.text(`Contact: ${siteConfig.phoneDisplay}`, margin, footerY + 11);
 
       doc.save(`${product.name.replace(/\s+/g, '_')}_Brochure.pdf`);
     } catch (err) {
@@ -208,11 +214,11 @@ export default function ProductClient({ product }: { product: Product }) {
   };
 
   const getWhatsAppLink = (type: 'price' | 'expert') => {
-    const link = `https://alienterprises.in/products/${product.id}`;
+    const link = `${siteConfig.websiteUrl}/products/${product.id}`;
     const text = type === 'price'
-      ? `Hi Ali Enterprises, I want the *Best Price* for *${product.name}*.\nLink: ${link}`
+      ? `Hi ${siteConfig.name}, I want the *Best Price* for *${product.name}*.\nLink: ${link}`
       : `Hello, I need technical expert advice for *${product.name}*.\nLink: ${link}`;
-    return `https://wa.me/919756300040?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(text)}`;
   };
 
   return (
@@ -249,31 +255,30 @@ export default function ProductClient({ product }: { product: Product }) {
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
             >
-              {/* --- BACKGROUND PRELOADER --- */}
-              {/* These images are visually hidden (opacity-0) and lack the priority tag, so the browser downloads them lazily AFTER the main image is fully loaded */}
-              {displayImages.length > 1 && (
+              {/* --- BACKGROUND PRELOADER (Smart Preload for Next Image Only) --- */}
+              {displayImages.length > 1 && !isVideo(displayImages[nextIndex]) && (
                 <div className="absolute inset-0 opacity-0 pointer-events-none z-0">
-                  {!isVideo(displayImages[nextIndex]) && (
-                    <Image
-                      src={displayImages[nextIndex]}
-                      alt="preload-next"
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
-                    />
-                  )}
-                  {displayImages.length > 2 && !isVideo(displayImages[prevIndex]) && (
-                    <Image
-                      src={displayImages[prevIndex]}
-                      alt="preload-prev"
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
-                    />
-                  )}
+                  <Image
+                    src={displayImages[nextIndex]}
+                    alt="preload"
+                    fill
+                    sizes="1vw" // Keep fetch weight tiny
+                    priority={false} 
+                  />
+                </div>
+              )}
+
+              {/* --- VISUAL LOADING SKELETON --- */}
+              {isImageLoading && !isVideo(displayImages[activeImage]) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-0 animate-pulse">
+                  <ImageIcon size={48} className="text-slate-200 mb-3" />
+                  <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
+                  <span className="text-xs text-slate-400 font-medium mt-2">Loading high-quality image...</span>
                 </div>
               )}
 
               {/* --- ACTIVE IMAGE DISPLAY --- */}
-              <AnimatePresence mode="popLayout" initial={false}>
+              <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={activeImage}
                   initial={{ opacity: 0 }}
@@ -287,6 +292,7 @@ export default function ProductClient({ product }: { product: Product }) {
                       <video
                         src={displayImages[activeImage]}
                         controls className="w-full h-full object-contain" autoPlay muted loop playsInline
+                        onLoadedData={() => setIsImageLoading(false)}
                       />
                     </div>
                   ) : (
@@ -294,9 +300,10 @@ export default function ProductClient({ product }: { product: Product }) {
                       src={displayImages[activeImage]}
                       alt={`${product.name} view ${activeImage + 1}`}
                       fill
-                      className="object-contain"
-                      priority={true} // High priority for LCP (Main Image loads instantly)
+                      className={`object-contain transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                      priority={true} // Forces immediate start
                       fetchPriority="high"
+                      onLoad={() => setIsImageLoading(false)} // Hides skeleton when done
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
                     />
                   )}
@@ -345,14 +352,21 @@ export default function ProductClient({ product }: { product: Product }) {
                   {displayImages.map((url, index) => (
                     <button
                       key={index}
-                      className={`relative w-16 h-16 rounded-lg border-2 overflow-hidden flex-shrink-0 transition-all transform ${activeImage === index
-                          ? 'border-teal-600 ring-2 ring-teal-600/20 scale-105'
+                      className={`relative w-16 h-16 rounded-lg border-2 overflow-hidden flex-shrink-0 transition-all transform bg-slate-100 ${activeImage === index
+                          ? 'border-teal-600 ring-2 ring-teal-600/20 scale-105 shadow-md'
                           : 'border-slate-200 opacity-60 hover:opacity-100 grayscale hover:grayscale-0'
                         }`}
                       onClick={() => setActiveImage(index)}
                     >
+                      {/* Fixed: Removed lazy loading so Next.js doesn't mistakenly hide them */}
                       {!isVideo(url) ? (
-                        <Image src={url} alt="thumbnail" fill className="object-cover" sizes="100px" />
+                        <Image 
+                          src={url} 
+                          alt="thumbnail" 
+                          fill 
+                          className="object-cover" 
+                          sizes="100px"
+                        />
                       ) : (
                         <div className="bg-slate-900 w-full h-full flex items-center justify-center text-white"><PlayCircle size={20} /></div>
                       )}
@@ -381,7 +395,7 @@ export default function ProductClient({ product }: { product: Product }) {
               <h1 className="text-xl lg:text-3xl font-extrabold text-slate-900 mb-2 leading-tight bg-slate-50 rounded-xl p-2">{product.name}</h1>
 
               {/* --- HIGH CONVERSION CTA BUTTON --- */}
-              <a href={getWhatsAppLink('price')} target="_blank" className="block group mb-4 relative overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
+              <a href={getWhatsAppLink('price')} target="_blank" rel="noreferrer" className="block group mb-4 relative overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 group-hover:scale-105 transition-transform duration-500"></div>
                 <div className="absolute inset-0 opacity-10"></div>
                 <div className="relative p-3 flex items-center justify-between">
@@ -434,7 +448,7 @@ export default function ProductClient({ product }: { product: Product }) {
                 >
                   {isGeneratingPdf ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />} Brochure
                 </button>
-                <a href={getWhatsAppLink('expert')} target="_blank" className="flex items-center justify-center gap-2 py-3 px-4 bg-amber-100 text-amber-800 border border-amber-200 font-bold rounded-lg hover:bg-amber-200 text-xs lg:text-sm transition-all shadow-sm active:scale-95">
+                <a href={getWhatsAppLink('expert')} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-3 px-4 bg-amber-100 text-amber-800 border border-amber-200 font-bold rounded-lg hover:bg-amber-200 text-xs lg:text-sm transition-all shadow-sm active:scale-95">
                   <PhoneCall size={16} /> Expert Call
                 </a>
               </div>
@@ -479,7 +493,7 @@ export default function ProductClient({ product }: { product: Product }) {
 
       {/* STICKY MOBILE CTA */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-3 z-40 lg:hidden flex gap-3 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] pb-safe">
-        <a href="tel:+919756300040" className="flex-1 bg-slate-100 text-slate-800 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-slate-200 active:bg-slate-200 transition-colors text-sm">
+        <a href={`tel:${siteConfig.phone}`} className="flex-1 bg-slate-100 text-slate-800 font-bold py-3 rounded-xl flex items-center justify-center gap-2 border border-slate-200 active:bg-slate-200 transition-colors text-sm">
           <PhoneCall size={18} /> Call Now
         </a>
         <a href={getWhatsAppLink('price')} className="flex-1 bg-teal-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg active:bg-teal-700 transition-colors text-sm">

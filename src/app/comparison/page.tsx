@@ -9,7 +9,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { 
   CheckCircle2, XCircle, ArrowRight, TrendingUp, 
   Users, Zap, Timer, IndianRupee, Factory, Settings, ShieldCheck,
-  Loader2
+  Loader2, ImageIcon
 } from "lucide-react";
 
 // --- Types (Must match Admin) ---
@@ -50,6 +50,9 @@ const DEFAULT_DATA: ComparisonData = {
     { name: "Production Cost", old: "High", new: "Low" },
   ]
 };
+
+// A tiny 1x1 transparent PNG base64 to use as an instant placeholder
+const PLACEHOLDER_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mO88OjRf/QA1wM2Hk7/EwAAAABJRU5ErkJggg==";
 
 // --- Smart Icon Helper ---
 const getIconForMetric = (name: string) => {
@@ -92,8 +95,10 @@ export default function ComparisonPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[50vh] bg-slate-50 pt-32 pb-20 flex justify-center items-start">
+      // Changed to min-h-[80vh] to perfectly match loaded content height, preventing footer jump
+      <div className="min-h-[80vh] bg-slate-50 pt-32 pb-20 flex justify-center items-center flex-col gap-4">
          <Loader2 className="animate-spin text-teal-600 w-10 h-10" />
+         <p className="text-slate-400 font-medium text-sm">Loading Comparison Data...</p>
       </div>
     );
   }
@@ -101,7 +106,7 @@ export default function ComparisonPage() {
   if (!data) return null;
 
   return (
-    <div className="bg-slate-50 pt-16 md:pt-24 pb-12 md:pb-20 overflow-hidden">
+    <div className="bg-slate-50 pt-16 md:pt-24 pb-12 md:pb-20 overflow-hidden min-h-[80vh]">
       
       {/* --- Header --- */}
       <div className="container mx-auto px-4 text-center mb-10 md:mb-16">
@@ -145,18 +150,29 @@ export default function ComparisonPage() {
             
             <div className="p-6 md:p-8 space-y-5">
                <div className="relative aspect-video bg-slate-100 rounded-xl overflow-hidden grayscale opacity-90 group-hover:opacity-100 transition-opacity">
+                  
+                  {/* CSS Loading Skeleton */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-200 animate-pulse z-0">
+                      <ImageIcon size={32} className="text-slate-300" />
+                  </div>
+
                   {data.oldImage ? (
                     <Image 
                       src={data.oldImage} 
                       alt="Old Method"
                       fill
-                      className="object-cover"
+                      priority={true} // Start loading immediately
+                      unoptimized={true} // Skip slow Next.js server optimization
+                      decoding="async" // Decode in background thread
+                      placeholder="blur"
+                      blurDataURL={PLACEHOLDER_IMAGE}
+                      className="object-cover relative z-10"
                       sizes="(max-width: 768px) 100vw, 50vw"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs">No Image</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs z-10">No Image</div>
                   )}
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center justify-center z-20">
                      <span className="bg-black/60 text-white px-3 py-1.5 text-xs md:text-sm rounded-lg font-bold backdrop-blur-sm uppercase tracking-wide">The Past</span>
                   </div>
                </div>
@@ -189,18 +205,29 @@ export default function ComparisonPage() {
             
             <div className="p-6 md:p-8 space-y-5">
                <div className="relative aspect-video bg-teal-800 rounded-xl overflow-hidden shadow-inner border border-teal-700/50">
+                  
+                  {/* CSS Loading Skeleton */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-teal-800 animate-pulse z-0">
+                      <ImageIcon size={32} className="text-teal-700" />
+                  </div>
+
                   {data.newImage ? (
                     <Image 
                       src={data.newImage} 
                       alt="Modern Machine"
                       fill
-                      className="object-cover"
+                      priority={true} // Start loading immediately
+                      unoptimized={true} // Skip slow Next.js server optimization
+                      decoding="async" // Decode in background thread
+                      placeholder="blur"
+                      blurDataURL={PLACEHOLDER_IMAGE}
+                      className="object-cover relative z-10"
                       sizes="(max-width: 768px) 100vw, 50vw"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-teal-600 text-xs">No Image</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-teal-600 text-xs z-10">No Image</div>
                   )}
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 z-20">
                      <span className="bg-amber-500 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse">WINNER</span>
                   </div>
                </div>
