@@ -48,6 +48,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
       const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
       return v ? v[2] : null;
     };
+
     const langCookie = getCookie("googtrans");
     if (langCookie) {
       const langCode = langCookie.split("/")[2];
@@ -80,7 +81,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
     { name: "Home", href: "/", icon: Home },
     { name: "About Us", href: "/aboutus", icon: Info },
     { name: "Products", href: "/products", icon: Box },
-    { name: "Demos", href: "/product-demo", icon: Video }, // <--- New Item Added Here
+    { name: "Demos", href: "/product-demo", icon: Video }, 
     { name: "Gallery", href: "/gallery", icon: ImageIcon },
     { name: "Service Centers", href: "/service-centers", icon: MapPin },
     { name: "Contact", href: "/contactus", icon: Mail },
@@ -120,16 +121,24 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
                   alt="Ali Enterprises Logo"
                   width={44}
                   height={44}
-                  className="object-contain w-full h-full"
+                  className="object-contain w-full h-full relative z-10"
                   priority
+                  unoptimized
                 />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-white tracking-tight leading-tight">
                   Ali Enterprises
                 </span>
-                <span className="text-[10px] lg:text-xs text-teal-200 font-medium tracking-wider uppercase">
+                <span className="text-[10px] lg:text-xs text-teal-200 font-medium tracking-wider uppercase flex items-center gap-1.5">
                   Industrial Machinery
+                  
+                  {/* MINI DUAL-GEAR ANIMATION */}
+                  <div className="relative w-4 h-4 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+                    <Settings size={12} className="absolute top-0 left-0 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} strokeWidth={2.5} />
+                    <Settings size={9} className="absolute bottom-0 right-0 text-white" style={{ animation: 'spin 4s linear infinite reverse' }} strokeWidth={2.5} />
+                  </div>
+                  
                 </span>
               </div>
             </Link>
@@ -140,9 +149,16 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className="text-white/90 hover:text-amber-400 font-medium text-sm transition-colors relative group flex items-center gap-1"
+                  className="text-white/90 hover:text-amber-400 font-medium text-sm transition-colors relative group flex items-center gap-1.5"
                 >
-                  {item.name}
+                  <span>{item.name}</span>
+                  
+                  {/* HOVER: MENU ITEM GEARS */}
+                  <div className="relative w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <Settings size={12} className="absolute top-0 left-0 text-amber-400 animate-spin" style={{ animationDuration: '3s' }} strokeWidth={2.5} />
+                    <Settings size={9} className="absolute bottom-0 right-0 text-white" style={{ animation: 'spin 3s linear infinite reverse' }} strokeWidth={2.5} />
+                  </div>
+
                   <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-amber-400 transition-all duration-300 group-hover:w-full"></span>
                 </Link>
               ))}
@@ -196,12 +212,11 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
             {/* --- Mobile Menu Toggle --- */}
             <div className="lg:hidden flex items-center gap-3">
                <button 
-                  onClick={() => setIsOpen(true)} 
-                  className="p-2 text-white/80 hover:bg-white/10 rounded-lg"
+                   onClick={() => setIsOpen(true)} 
+                   className="p-2 text-white/80 hover:bg-white/10 rounded-lg"
                >
                   <Languages size={24} />
                </button>
-
                <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors z-50"
@@ -225,7 +240,6 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
               onClick={() => setIsOpen(false)}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
             />
-
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -234,17 +248,24 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
               className="fixed top-0 right-0 w-[85%] max-w-sm h-full bg-white z-50 shadow-2xl lg:hidden flex flex-col"
             >
               
-              {/* Drawer Header */}
-              <div className="p-6 bg-teal-900 text-white">
-                <div className="mt-12 mb-4">
+              {/* Drawer Header (WITH LARGE MECHANICAL GEARS) */}
+              <div className="p-6 bg-teal-900 text-white relative overflow-hidden">
+                 
+                {/* Background Dual-Gear Animation */}
+                <div className="absolute top-0 right-0 opacity-20 pointer-events-none">
+                  <Settings size={120} className="absolute -top-10 -right-8 text-teal-100 animate-spin" style={{ animationDuration: '15s' }} strokeWidth={1} />
+                  <Settings size={70} className="absolute top-[65px] right-[75px] text-teal-300" style={{ animation: 'spin 15s linear infinite reverse' }} strokeWidth={1.5} />
+                </div>
+
+                <div className="mt-12 mb-4 relative z-10">
                   <h3 className="text-2xl font-bold">Menu</h3>
                   <p className="text-teal-200 text-xs uppercase tracking-wider">Navigation</p>
                 </div>
               </div>
 
               {/* Drawer Links */}
-              <div className="flex-1 overflow-y-auto py-2">
-                
+              <div className="flex-1 overflow-y-auto py-2 relative z-10 bg-white">
+                 
                 {/* Mobile Language Selector */}
                 <div className="px-6 py-4 border-b border-gray-100">
                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Language</p>
@@ -255,8 +276,8 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
                           onClick={() => changeLanguage(lang.code)}
                           className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all text-center ${
                             currentLang === lang.code 
-                              ? "bg-teal-600 text-white border-teal-600 shadow-sm" 
-                              : "bg-white text-gray-600 border-gray-200 hover:border-teal-400"
+                               ? "bg-teal-600 text-white border-teal-600 shadow-sm" 
+                               : "bg-white text-gray-600 border-gray-200 hover:border-teal-400"
                           }`}
                         >
                           {lang.native}
@@ -274,8 +295,17 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
                       className="group flex items-center justify-between px-6 py-3.5 hover:bg-teal-50 transition-colors"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="p-2 bg-teal-50 text-teal-700 rounded-lg group-hover:bg-teal-100 transition-colors">
-                          <item.icon size={20} />
+                        <div className="relative p-2 bg-teal-50 text-teal-700 rounded-lg group-hover:bg-teal-100 transition-colors overflow-hidden">
+                          
+                          {/* Standard Icon */}
+                          <item.icon size={20} className="relative z-10 group-hover:opacity-0 transition-opacity duration-300" />
+                          
+                          {/* HOVER: MECHANICAL GEARS FOR MOBILE MENU */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
+                            <Settings size={18} className="absolute top-1 left-1 text-teal-600 animate-spin" style={{ animationDuration: '3s' }} strokeWidth={2} />
+                            <Settings size={12} className="absolute bottom-1 right-1 text-teal-400" style={{ animation: 'spin 3s linear infinite reverse' }} strokeWidth={2.5} />
+                          </div>
+
                         </div>
                         <span className="font-semibold text-gray-700 group-hover:text-teal-900">
                           {item.name}
@@ -288,7 +318,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavToggle }) => {
               </div>
 
               {/* Drawer Footer */}
-              <div className="p-6 border-t border-gray-100 bg-gray-50">
+              <div className="p-6 border-t border-gray-100 bg-gray-50 relative z-10">
                 <Link href="/contactus" onClick={() => setIsOpen(false)}>
                   <button className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
                     <Phone size={18} />

@@ -58,7 +58,7 @@ const ServiceCentersSection = () => {
   }, []);
 
   return (
-    <section id="service-centers" className="py-12 lg:py-16 bg-slate-50 relative overflow-hidden">
+    <section id="service-centers" className="py-12 lg:py-16 relative overflow-hidden">
       
       {/* Background Decor (Simplified for Performance) */}
       <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-teal-100/30 rounded-full blur-[80px] pointer-events-none -translate-y-1/2 translate-x-1/2"></div>

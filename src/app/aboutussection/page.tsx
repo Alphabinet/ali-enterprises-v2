@@ -61,7 +61,7 @@ const AboutUsSection = () => {
   return (
     <section
       id="about"
-      className="relative py-12 lg:py-24 bg-slate-50 overflow-hidden"
+      className="relative py-12 lg:py-24 overflow-hidden"
     >
       {/* Decorative Background Elements (Desktop Only) */}
       <div className="hidden lg:block absolute top-0 right-0 w-[500px] h-[500px] bg-teal-100/40 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>

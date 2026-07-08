@@ -106,7 +106,7 @@ export default function ComparisonPage() {
   if (!data) return null;
 
   return (
-    <div className="bg-slate-50 pt-16 md:pt-24 pb-12 md:pb-20 overflow-hidden min-h-[80vh]">
+    <div className="pt-16 md:pt-24 pb-12 md:pb-20 overflow-hidden min-h-[80vh]">
       
       {/* --- Header --- */}
       <div className="container mx-auto px-4 text-center mb-10 md:mb-16">

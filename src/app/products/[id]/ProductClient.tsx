@@ -6,11 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Factory, Zap, ShieldCheck, CheckCircle2,
   MessageCircle, FileDown, PhoneCall, FileText, ChevronRight, ChevronLeft, Loader2,
-  Hammer, Wrench, Settings, Activity, PlayCircle, ImageIcon
+  Hammer, Wrench, Settings, Activity, PlayCircle
 } from "lucide-react";
 import ROICalculator from "@/components/ROICalculator";
 import Link from "next/link";
-import { siteConfig } from "@/config/site"; // Import the central config
+import { siteConfig } from "@/config/site"; 
 
 // Types
 export interface Product {
@@ -27,9 +27,9 @@ export interface Product {
 
 export default function ProductClient({ product }: { product: Product }) {
   const [activeImage, setActiveImage] = useState<number>(0);
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(true); // Track main image loading state
-
+  
   // Mobile Swipe State
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -262,18 +262,9 @@ export default function ProductClient({ product }: { product: Product }) {
                     src={displayImages[nextIndex]}
                     alt="preload"
                     fill
-                    sizes="1vw" // Keep fetch weight tiny
+                    sizes="1vw"
                     priority={false} 
                   />
-                </div>
-              )}
-
-              {/* --- VISUAL LOADING SKELETON --- */}
-              {isImageLoading && !isVideo(displayImages[activeImage]) && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 z-0 animate-pulse">
-                  <ImageIcon size={48} className="text-slate-200 mb-3" />
-                  <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
-                  <span className="text-xs text-slate-400 font-medium mt-2">Loading high-quality image...</span>
                 </div>
               )}
 
@@ -285,27 +276,53 @@ export default function ProductClient({ product }: { product: Product }) {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="w-full h-full absolute inset-0 z-10"
+                  className="w-full h-full absolute inset-0 z-10 bg-white"
                 >
                   {isVideo(displayImages[activeImage]) ? (
                     <div className="w-full h-full bg-black flex items-center justify-center relative">
+                      
+                      {/* Video Loading Animation */}
+                      {isImageLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20">
+                          <div className="relative w-16 h-16 flex items-center justify-center mb-2">
+                            <Settings size={44} className="absolute top-0 left-0 text-teal-500 animate-spin" style={{ animationDuration: '3s' }} strokeWidth={1.5} />
+                            <Settings size={30} className="absolute bottom-0 right-0 text-slate-500" style={{ animation: 'spin 3s linear infinite reverse' }} strokeWidth={1.5} />
+                          </div>
+                        </div>
+                      )}
+
                       <video
                         src={displayImages[activeImage]}
-                        controls className="w-full h-full object-contain" autoPlay muted loop playsInline
+                        controls className="w-full h-full object-contain relative z-10" autoPlay muted loop playsInline
                         onLoadedData={() => setIsImageLoading(false)}
                       />
                     </div>
                   ) : (
-                    <Image
-                      src={displayImages[activeImage]}
-                      alt={`${product.name} view ${activeImage + 1}`}
-                      fill
-                      className={`object-contain transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                      priority={true} // Forces immediate start
-                      fetchPriority="high"
-                      onLoad={() => setIsImageLoading(false)} // Hides skeleton when done
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
-                    />
+                    <>
+                      {/* --- CUSTOM DUAL-GEAR LOADING ANIMATION --- */}
+                      {isImageLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-20">
+                          <div className="relative w-24 h-24 flex items-center justify-center mb-3">
+                            {/* Gear 1 (Clockwise) */}
+                            <Settings size={56} className="absolute top-2 left-2 text-teal-600 animate-spin" style={{ animationDuration: '3s' }} strokeWidth={1.5} />
+                            {/* Gear 2 (Counter-Clockwise) */}
+                            <Settings size={40} className="absolute bottom-2 right-1 text-slate-300" style={{ animation: 'spin 3s linear infinite reverse' }} strokeWidth={1.5} />
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase animate-pulse">Loading Image...</span>
+                        </div>
+                      )}
+
+                      <Image
+                        src={displayImages[activeImage]}
+                        alt={`${product.name} view ${activeImage + 1}`}
+                        fill
+                        className="object-contain" 
+                        priority={true} 
+                        fetchPriority="high"
+                        onLoad={() => setIsImageLoading(false)}
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 50vw"
+                      />
+                    </>
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -358,7 +375,6 @@ export default function ProductClient({ product }: { product: Product }) {
                         }`}
                       onClick={() => setActiveImage(index)}
                     >
-                      {/* Fixed: Removed lazy loading so Next.js doesn't mistakenly hide them */}
                       {!isVideo(url) ? (
                         <Image 
                           src={url} 

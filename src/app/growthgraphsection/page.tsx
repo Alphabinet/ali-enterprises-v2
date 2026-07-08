@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -32,9 +32,18 @@ ChartJS.register(
 
 // --- Sales Data: Showing exponential market adoption ---
 const labels = ["2021", "2022", "2023", "2024", "2025", "2026 (Est.)"];
-const salesData = [120, 280, 550, 890, 1350, 1800];
+const salesData = [10, 100, 200, 400, 450, 500];
 
 const GrowthGraph: React.FC = () => {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return <div className="py-12 text-center text-gray-500">Loading metrics...</div>;
+  }
 
   const chartData = {
     labels: labels,
@@ -95,11 +104,11 @@ const GrowthGraph: React.FC = () => {
       },
       y: {
         grid: { color: "rgba(255,255,255,0.05)", tickLength: 0 },
-        ticks: { 
-            color: "#94a3b8", 
-            font: { size: 12, weight: 'bold' },
-            callback: (value) => `${value}` 
-        },
+        ticks: {
+             color: "#94a3b8",
+             font: { size: 12, weight: 'bold' },
+            callback: (value) => `${value}`
+         },
         border: { display: false },
       },
     },
@@ -111,8 +120,8 @@ const GrowthGraph: React.FC = () => {
   };
 
   return (
-    <section className="py-12 lg:py-12 bg-slate-50 relative overflow-hidden">
-      
+    <section className="py-12 lg:py-12 relative overflow-hidden">
+             
       {/* Decorative Background Elements */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-teal-500/10 rounded-full blur-3xl"></div>
@@ -120,7 +129,7 @@ const GrowthGraph: React.FC = () => {
       </div>
 
       <div className="container mx-auto px-4 lg:px-8 max-w-6xl relative z-10">
-        
+                 
         {/* --- Header Section --- */}
         <div className="text-center max-w-3xl mx-auto mb-12 lg:mb-16">
           <motion.div 
@@ -132,6 +141,7 @@ const GrowthGraph: React.FC = () => {
             <BarChart3 size={16} />
             <span className="text-xs font-bold uppercase tracking-widest">Market Leaders</span>
           </motion.div>
+          
           <motion.h2 
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -142,6 +152,7 @@ const GrowthGraph: React.FC = () => {
             Trusted by Thousands <br className="hidden md:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500">Across India.</span>
           </motion.h2>
+          
           <motion.p 
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -155,7 +166,7 @@ const GrowthGraph: React.FC = () => {
 
         {/* --- Main Content Grid --- */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-          
+                     
           {/* Left: Leadership & Growth Cards */}
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
@@ -199,7 +210,7 @@ const GrowthGraph: React.FC = () => {
           >
             {/* Ambient Glow behind the chart */}
             <div className="absolute inset-0 bg-gradient-to-tr from-teal-100/20 to-slate-900 rounded-[2rem] pointer-events-none"></div>
-            
+                         
             <div className="relative z-10 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-6">
               <div>
                 <h3 className="text-2xl font-bold text-white tracking-tight">Annual Machine Delivered</h3>
@@ -207,7 +218,7 @@ const GrowthGraph: React.FC = () => {
               </div>
               <div className="bg-slate-800/50 border border-slate-700 px-4 py-2 rounded-xl">
                  <span className="text-xs text-amber-200 block font-bold uppercase tracking-wider mb-0.5">Delivered Machines</span>
-                 <span className="text-lg font-black text-amber-400">1800+ unit Year</span>
+                 <span className="text-lg font-black text-amber-400">400+ unit Year</span>
               </div>
             </div>
 

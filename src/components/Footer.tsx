@@ -33,6 +33,7 @@ const Footer: React.FC = () => {
                   width={32}
                   height={32}
                   className="object-contain w-full h-full"
+                  unoptimized
                 />
               </div>
               <div>
@@ -111,14 +112,8 @@ const Footer: React.FC = () => {
                 <Mail size={16} className="text-amber-400 shrink-0" />
                 alienterprises54@yahoo.com
               </a>
-              {/* Optional Phone if you have it */}
-              {/* <div className="flex items-center gap-3 text-teal-50">
-                <Phone size={16} className="text-amber-400 shrink-0" />
-                +91 98765 43210
-              </div> */}
             </div>
           </div>
-
         </div>
 
         {/* Footer Bottom - Minimal */}
@@ -126,16 +121,15 @@ const Footer: React.FC = () => {
           <p>&copy; {currentYear} Ali Enterprises. All rights reserved.</p>
           
           <a 
-            href="https://www.alphabinet.com" 
+            href="https://www.instagram.com/chaudhary_khatri/" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-1 hover:text-amber-300 transition-colors opacity-80 hover:opacity-100"
           >
-            <span>Developed by Alphabinet</span>
+            <span>Developed by Jayant Chaudhary</span>
             <ExternalLink size={8} />
           </a>
         </div>
-
       </div>
     </footer>
   );

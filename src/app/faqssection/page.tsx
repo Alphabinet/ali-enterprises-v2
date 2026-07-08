@@ -54,7 +54,7 @@ const FAQsSection: React.FC = () => {
   };
 
   return (
-    <section id="faq" className="py-12 lg:py-20 bg-slate-50 relative overflow-hidden">
+    <section id="faq" className="py-12 lg:py-20 relative overflow-hidden">
       
       {/* JSON-LD for SEO */}
       <script
